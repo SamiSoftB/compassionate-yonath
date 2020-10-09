@@ -10,7 +10,7 @@ export const RAW_DATUM_IDX = 'ANASENRawIDX'
  * @param {{}} changes List of of objects we need to change.
  * @returns {void}
  */
-export const applyChanges = (vegaView, dataSetName, changes) => {
+export const applyChanges = async (vegaView, dataSetName, changes) => {
   if (!changes) return
 
   const { dataToInsert = [], dataToRemove = [], datumTuplesToModify = [] } = changes
@@ -22,7 +22,7 @@ export const applyChanges = (vegaView, dataSetName, changes) => {
   })
 
   // ... and use it in the Vega view
-  vegaView.change(dataSetName, changeSet)
+  await vegaView.change(dataSetName, changeSet)
 }
 
 /**

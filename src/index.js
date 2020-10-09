@@ -47,12 +47,11 @@ const chartStruct = {
       type: "SELECTION"
     },
     idx: {
-      name: "id",
+      name: "index",
       type: "LINE"
     }
   }
 };
-
 
 const _createSelectDataMarkChanges = (
   vegaView,
@@ -62,11 +61,11 @@ const _createSelectDataMarkChanges = (
   removeFromSelection = false
 ) => {
   const datumTuplesToModify = [];
-  const currentData = vegaView.data("tree");
+  const currentData = vegaView.data("links");
   const selectionColName = columnsData.selection.name;
-  const quantitativeColName = "size"; /* columnsData.Qcolumn.name */
+  const quantitativeColName = "value"; /* columnsData.Qcolumn.name */
   const quantitativeSelectionColName =
-    "sizeSelected"; /* columnsData.QSelectedColumn.name */
+    "SelectionValue"; /* columnsData.QSelectedColumn.name */
   const datumIdxColName = columnsData.idx.name;
 
   currentData.forEach((datum) => {
@@ -121,31 +120,28 @@ const _createSelectDataMarkChanges = (
 };
 
 const handleResetSelectionClick = (_signal, signalValue) => {
-  if (!signalValue.value) return;
+  if (!signalValue) return;
 
   try {
-    if (signalValue.selectionIsOn) {
-      //console.log("hello", signalValue)
-      const currentData = vegaView.data("tree");
-      const selection = vegaView.data("chartStruct")[0].columnsData.selection
-        .name;
+    const currentData = vegaView.data("links");
+    const selection = vegaView.data("chartStruct")[0].columnsData.selection
+      .name;
 
-      const datumTuplesToModify = [];
-      currentData.forEach((datum) => {
-        if (datum[selection] && datum[selection] > 0) {
-          datumTuplesToModify.push({
-            datum,
-            field: selection,
-            value: 0
-          });
-        }
-      });
-      applyChanges(vegaView, "tree", { datumTuplesToModify });
-      runVega(vegaView, "tree");
+    const datumTuplesToModify = [];
+    currentData.forEach((datum) => {
+      if (datum[selection] && datum[selection] > 0) {
+        datumTuplesToModify.push({
+          datum,
+          field: selection,
+          value: 0
+        });
+      }
+    });
+    applyChanges(vegaView, "links", { datumTuplesToModify });
+    runVega(vegaView, "links");
 
-      // Call the API.
-      //getResetSelectionOpToAPI()
-    }
+    // Call the API.
+    //getResetSelectionOpToAPI()
   } catch (e) {
     console.error(e);
   }
@@ -153,20 +149,19 @@ const handleResetSelectionClick = (_signal, signalValue) => {
 
 const handleMarkSelectionClick = (_signal, signalValue) => {
   try {
-    //console.log("markSelection signalValue", signalValue);
+    console.log("markSelection signalValue", signalValue);
     applyChanges(
       vegaView,
-      "tree",
+      "links",
       _createSelectDataMarkChanges(
         vegaView,
         signalValue.chartStructure.columnsData,
         [signalValue.value],
-        signalValue.ctrlKey,
+        signalValue.ctrlKey || signalValue.metaKey,
         signalValue.altKey
       )
     );
-    runVega(vegaView, "tree");
-    vegaView.runAsync();
+    runVega(vegaView, "links");
 
     // Call the API.
     // getSimpleSelectionOpForApi({
@@ -180,113 +175,108 @@ const handleMarkSelectionClick = (_signal, signalValue) => {
   }
 };
 
-const _getRectBrushSelectionOpsForApi = ({
-  vegaView,
-  signalValue,
-  xExclusive = false,
-  yExclusive = false
-}) => {
-  const brush = signalValue.brush;
+const handleZoom = (_signal, signalValue) => {
+  if (!vegaView || !signalValue) return null;
+  const {
+    anchor,
+    zoomX,
+    zoomY,
+    xRangeNormalized,
+    yRangeNormalized,
+    width,
+    height
+  } = signalValue;
 
-  if (brush.state === "stop") {
-    const chartStructure = signalValue.chartStructure;
-    const columnsData = chartStructure.columnsData;
+  const newXRange = [
+    anchor[0] / width + (xRangeNormalized[0] - anchor[0] / width) * zoomX[0],
+    anchor[0] / width + (xRangeNormalized[1] - anchor[0] / width) * zoomX[1]
+  ];
+  const newYRange = [
+    anchor[1] / height + (yRangeNormalized[0] - anchor[1] / height) * zoomY[0],
+    anchor[1] / height + (yRangeNormalized[1] - anchor[1] / height) * zoomY[1]
+  ];
 
-    const xSegmentInDomain = brush.segmentInDomain.x;
-    const ySegmentInDomain = brush.segmentInDomain.y;
+  const userData = vegaView.data("userData")[0];
+  const columnsData = userData.columnsData;
 
-    const currentData = vegaView.data("tree");
+  const newUserData = {
+    ...columnsData,
+    x: {
+      ...columnsData.x,
+      rangeZoom: newXRange,
+      zoomed: true
+    },
+    y: {
+      ...columnsData.y,
+      rangeZoom: newYRange,
+      zoomed: true
+    },
+    operation: "zooming"
+  };
+  const datumTuplesToModify = [
+    {
+      datum: userData,
+      field: "columnsData",
+      value: newUserData
+    }
+  ];
 
-    const intervals = {
-      x: xSegmentInDomain,
-      y: ySegmentInDomain
-    };
-
-    console.log('brush', xSegmentInDomain, ySegmentInDomain)
-
-    const indexes = currentData.filter((datum) => {
-      return (
-        (xExclusive ||
-          (datum.y0 <= ySegmentInDomain[1] &&
-            datum.y1 >= ySegmentInDomain[0])) &&
-        (yExclusive ||
-          (datum.x0 <= xSegmentInDomain[1] && datum.x1 >= xSegmentInDomain[0]))
-      );
-    });
-
-    console.log('indexes', indexes)
-    // getRectBrushSelectionOpsForApi({
-    //   quantitativeExclusiveFlag,
-    //   categoryExclusiveFlag,
-    //   columnsData,
-    //   indexes,
-    //   intervals,
-    //   quantitativeBrushSegmentInDomain,
-    //   categoryBrushList,
-    //   nameNIdxOfByColumnTuples,
-    //   brush,
-    // })
-
-    return _createSelectDataMarkChanges(
-      vegaView,
-      columnsData,
-      indexes,
-      brush.domEvent.ctrlKey || brush.domEvent.metaKey,
-      brush.domEvent.altKey
-    );
-  }
+  applyChanges(vegaView, "userData", { datumTuplesToModify });
 };
 
-const handleRectangleSelectionBrush = (_signal, signalValue) => {
-  try {
-    applyChanges(
-      vegaView,
-      "tree",
-      _getRectBrushSelectionOpsForApi({ vegaView, signalValue })
-    );
-    runVega(vegaView, "tree");
-  } catch (e) {
-    console.error(e);
-  }
-};
+const handlePan = (_signal, signalValue) => {
+  if (!signalValue) return null;
+  const {
+    xcur,
+    xRangeNormalized,
+    yRangeNormalized,
+    deltaX,
+    width,
+    ycur,
+    deltaY,
+    height
+  } = signalValue;
 
-const handleXSliceSelectionBrush = (_signal, signalValue) => {
-  try {
-    applyChanges(
-      vegaView,
-      "tree",
-      _getRectBrushSelectionOpsForApi({
-        vegaView,
-        signalValue,
-        xExclusive: true
-      })
-    );
-    runVega(vegaView, "tree");
-  } catch (e) {
-    console.error(e);
-  }
-};
+  const newXRange = [
+    (xcur[0] + deltaX[0]) / width,
+    (xcur[1] + deltaX[1]) / width
+  ];
+  const newYRange = [
+    (ycur[0] + deltaY[0]) / height,
+    (ycur[1] + deltaY[1]) / height
+  ];
 
-const handleYSliceSelectionBrush = (_signal, signalValue) => {
-  try {
-    applyChanges(
-      vegaView,
-      "tree",
-      _getRectBrushSelectionOpsForApi({
-        vegaView,
-        signalValue,
-        yExclusive: true
-      })
-    );
-    runVega(vegaView, "tree");
-  } catch (e) {
-    console.error(e);
-  }
+  const userData = vegaView.data("userData")[0];
+  const columnsData = userData.columnsData;
+
+  const newUserData = {
+    ...columnsData,
+    x: {
+      ...columnsData.x,
+      rangeZoom: newXRange,
+      zoomed: true
+    },
+    y: {
+      ...columnsData.y,
+      rangeZoom: newYRange,
+      zoomed: true
+    },
+    operation: "zooming"
+  };
+  const datumTuplesToModify = [
+    {
+      datum: userData,
+      field: "columnsData",
+      value: newUserData
+    }
+  ];
+
+  applyChanges(vegaView, "userData", { datumTuplesToModify });
 };
 
 document.getElementById("app").innerHTML = `<div id="vega-container"></div>`;
 
-vegaEmbed("#vega-container", vegaSpec(400, 400, chartStruct), {
+vegaEmbed("#vega-container", vegaSpec(600, 500, chartStruct), {
   mode: "vega"
 })
   .then((result) => {
@@ -296,23 +286,13 @@ vegaEmbed("#vega-container", vegaSpec(400, 400, chartStruct), {
     vegaView = result.view;
 
     // result.view.addSignalListener("panObj", handlePan);
-    // result.view.addSignalListener(
-    //   "resetSelectionOnClick",
-    //   handleResetSelectionClick
-    // );
-    // result.view.addSignalListener("OnClickDataMark", handleMarkSelectionClick);
-    // result.view.addSignalListener(
-    //   "rectBrushForSelection",
-    //   handleRectangleSelectionBrush
-    // );
-    // result.view.addSignalListener(
-    //   "sliceXBrushForSelection",
-    //   handleXSliceSelectionBrush
-    // );
-    // result.view.addSignalListener(
-    //   "sliceYBrushForSelection",
-    //   handleYSliceSelectionBrush
-    // );
+    result.view.addSignalListener(
+      "resetSelectionOnClick",
+      handleResetSelectionClick
+    );
+    result.view.addSignalListener("OnClickDataMark", handleMarkSelectionClick);
+    result.view.addSignalListener("zoomObj", handleZoom);
+    result.view.addSignalListener("panObj", handlePan);
   })
   .catch((error) => {
     console.error("vega:error", error);
