@@ -1048,7 +1048,6 @@ const vegaSpec = (width, height, chartStruct) => {
       name: "nodesLables",
       type: "text",
       clip: true,
-      interactive: false,
       from: { data: "nodes" },
       encode: {
         update: {

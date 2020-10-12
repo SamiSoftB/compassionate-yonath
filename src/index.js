@@ -237,14 +237,43 @@ const handlePan = (_signal, signalValue) => {
     height
   } = signalValue;
 
-  const newXRange = [
+  
+
+  if (deltaX[0] === 0 && deltaX[1] === 0 && deltaY[0] === 0 && deltaY[1] === 0) {
+    return
+  }
+  console.log('pan', signalValue)
+  const span = (x) => {
+    return x[1] - x[0];
+  };
+  const _clampRange = (range, min, max) => {
+    let lo = range[0];
+    let hi = range[1];
+    let span;
+
+    if (hi < lo) {
+      span = hi;
+      hi = lo;
+      lo = span;
+    }
+    span = hi - lo;
+
+    return span >= max - min
+      ? [min, max]
+      : [(lo = Math.min(Math.max(lo, min), max - span)), lo + span];
+  };
+
+  const newXRange = _clampRange( [
     (xcur[0] + deltaX[0]) / width,
     (xcur[1] + deltaX[1]) / width
-  ];
-  const newYRange = [
+  ], 1-span(xRangeNormalized), span(xRangeNormalized))
+
+  const newYRange = _clampRange([
     (ycur[0] + deltaY[0]) / height,
     (ycur[1] + deltaY[1]) / height
-  ];
+  ], 1-span(yRangeNormalized), span(yRangeNormalized))
+
+  console.log('range', xRangeNormalized, yRangeNormalized)
 
   const userData = vegaView.data("userData")[0];
   const columnsData = userData.columnsData;
